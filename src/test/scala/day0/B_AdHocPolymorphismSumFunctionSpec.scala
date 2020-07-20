@@ -4,12 +4,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
 // http://eed3si9n.com/herding-cats/sum-function.html
-class _01_AdHocPolymorphismSumFunctionSpec extends AsyncWordSpec with Matchers {
-
-  trait Monoid[A] {
-    def mappend(a: A, b: A): A
-    def mzero: A
-  }
+class B_AdHocPolymorphismSumFunctionSpec extends AsyncWordSpec with Matchers {
 
   "Sum Function" should {
 

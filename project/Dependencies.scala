@@ -11,6 +11,7 @@ object Dependencies {
 
   lazy val testDependencies = Seq(
     "org.scalactic" %% "scalactic" % scalaTestVersion,
-    "org.scalatest" %% "scalatest" % scalaTestVersion % "test"
+    "org.scalatest" %% "scalatest" % scalaTestVersion % "test",
+    "org.typelevel" %% "simulacrum" % "1.0.0" % "test"
   )
 }
