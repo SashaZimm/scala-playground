@@ -1,4 +1,4 @@
-package day1
+package herding.cats.day1
 
 import cats.PartialOrder
 import cats.implicits._

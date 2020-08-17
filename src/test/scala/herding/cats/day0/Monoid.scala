@@ -1,4 +1,4 @@
-package day0
+package herding.cats.day0
 
 trait Monoid[A] {
   def mappend(a: A, b: A): A

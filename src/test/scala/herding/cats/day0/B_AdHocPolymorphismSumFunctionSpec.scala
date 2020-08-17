@@ -1,4 +1,4 @@
-package day0
+package herding.cats.day0
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec

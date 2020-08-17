@@ -1,4 +1,4 @@
-package day2
+package herding.cats.day2
 
 import cats._
 import org.scalatest.matchers.should.Matchers
