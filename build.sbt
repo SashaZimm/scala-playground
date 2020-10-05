@@ -9,6 +9,7 @@ scalaVersion := "2.13.2"
 resolvers in ThisBuild += "Artima Maven Repository" at "https://repo.artima.com/releases"
 
 libraryDependencies ++=
+  akkaStreamsDependencies ++
   catsDependencies ++
   testDependencies
 
@@ -16,6 +17,7 @@ libraryDependencies ++=
 addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full)
 
 scalacOptions ++= Seq(
+  "-language:postfixOps",
 //  "-deprecation",
   "-Ymacro-annotations",
 //  "-P:artima-supersafe:config-file:project/supersafe.cfg"
