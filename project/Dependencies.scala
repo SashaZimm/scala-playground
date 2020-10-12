@@ -5,7 +5,7 @@ object Dependencies {
   val catsVersion = "2.1.1"
   val scalaTestVersion = "3.1.2"
 
-  val akkaStreamsVersion = "2.6.9"
+  val akkaStreamsVersion = "2.6.10"
 
   lazy val akkaStreamsDependencies = Seq(
     "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion
