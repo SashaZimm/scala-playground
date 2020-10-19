@@ -5,8 +5,12 @@ Currently going through: https://doc.akka.io/docs/akka/current/stream/operators/
 
 Skipped `Source` Methods:
 
-`asSubscriber`
+- `asSubscriber`
+- `completionStage` (Java DSL - see `Source.future` for scala version)
+- `completionStageSource` (Java DSL - see `Source.futureSource` for scala version)
+- `fromFuture` (Deprecated see: `Source.future`)
+- `fromFutureSource` (Deprecated see: `Source.futureSource`)
 
-Next: `Source.completionStage`
+TODO Next: `Source.fromPublisher`
 
 
