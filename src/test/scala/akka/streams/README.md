@@ -10,7 +10,11 @@ Skipped `Source` Methods:
 - `completionStageSource` (Java DSL - see `Source.futureSource` for scala version)
 - `fromFuture` (Deprecated see: `Source.future`)
 - `fromFutureSource` (Deprecated see: `Source.futureSource`)
+- `fromPublisher` (JavaFlowSupport)
+- `fromSourceCompletionStage` (Deprecated see: `Source.completionStageSource`)
+- `lazily` (Deprecated see: `Source.lazySource`)
+- `lazilyAsync` (Deprecated see: `Source.lazyFutureSource`)
 
-TODO Next: `Source.fromPublisher`
+TODO Next: `Source.lazyCompletionStage`
 
 

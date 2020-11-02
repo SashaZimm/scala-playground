@@ -1,14 +1,16 @@
 package akka.streams
 
+import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
 
+import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Concat, Keep, Merge, Sink, Source}
 import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.DurationInt
 
 class SourceSpec extends AsyncWordSpec with Matchers {
@@ -139,6 +141,33 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       Await.result(futureResult, 1 second) shouldBe Seq(1,2,3)
     }
 
-    // TODO NEXT fromPublisher: https://doc.akka.io/docs/akka/current/stream/operators/index.html#source-operators
+    "use Source.future to send the single value of the future when it completes successfully and there is demand" in {
+      val futureResult = Source.future(Future.successful(27)).runWith(Sink.head)
+
+      Await.result(futureResult, 1 seconds) shouldBe 27
+//      futureResult.futureValue shouldBe 27 // TODO update all test with this syntax???
+    }
+
+    "use Source.future to send the exception thrown by the future when it fails to complete" in {
+      val futureResult = Source.future(Future.failed(new RuntimeException("Bang!"))).runWith(Sink.ignore)
+
+      futureResult.failed.futureValue shouldBe a [RuntimeException]
+      futureResult.failed.futureValue.getMessage shouldBe "Bang!"
+    }
+
+    "use Source.futureSource to stream the elements of the future source when it completes successfully" in {
+      val futureResult = Source.futureSource(Future.successful(Source(List(10,9,8,7)))).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(10,9,8,7)
+    }
+
+    "use Source.futureSource to send the exception thrown by the future source when it fails to complete" in {
+      val futureResult = Source.futureSource(Future.failed(new RuntimeException("Busted!"))).runWith(Sink.ignore)
+
+      futureResult.failed.futureValue shouldBe a [RuntimeException]
+      futureResult.failed.futureValue.getMessage shouldBe "Busted!"
+    }
+
+    // TODO NEXT lazyCompletionStage: https://doc.akka.io/docs/akka/current/stream/operators/Source/lazyCompletionStage.html
   }
 }
