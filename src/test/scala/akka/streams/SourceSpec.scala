@@ -1,5 +1,7 @@
 package akka.streams
 
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
 
@@ -168,6 +170,63 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       futureResult.failed.futureValue.getMessage shouldBe "Busted!"
     }
 
-    // TODO NEXT lazyCompletionStage: https://doc.akka.io/docs/akka/current/stream/operators/Source/lazyCompletionStage.html
+    "use Source.lazyFuture to defer creation of single element source until there is demand" in {
+      val testStartTime = ZonedDateTime.now()
+
+      val lazySourceFuture = Source.lazyFuture(() => Future.successful(ZonedDateTime.now()))
+
+      TimeUnit.SECONDS.sleep(2)
+
+      val futureResult = lazySourceFuture.runWith(Sink.head)
+
+      val lazyFutureTime = Await.result(futureResult, 1 second)
+
+      ChronoUnit.SECONDS.between(testStartTime, lazyFutureTime) should be >= 2L
+    }
+
+    "use Source.lazyFutureSource to defer creation & materialization of a Source until there is demand" in {
+      val testStartTime = ZonedDateTime.now()
+
+      val lazyFutureSource = Source.lazyFutureSource(() => Future.successful(Source(Seq(ZonedDateTime.now()))))
+
+      TimeUnit.SECONDS.sleep(2)
+
+      val futureResult = lazyFutureSource.runWith(Sink.head)
+
+      val lazyFutureSourceHeadTime = Await.result(futureResult, 1 second)
+
+      ChronoUnit.SECONDS.between(testStartTime, lazyFutureSourceHeadTime) should be >= 2L
+    }
+
+    "use Source.lazySingle to defer creation of a single element Source until there is demand" in {
+      val testStartTime = ZonedDateTime.now()
+
+      val lazySingleSource = Source.lazySingle(() => ZonedDateTime.now())
+
+      TimeUnit.SECONDS.sleep(2)
+
+      val futureResult = lazySingleSource.runWith(Sink.head)
+
+      val lazySingleSourceTime = Await.result(futureResult, 1 second)
+
+      ChronoUnit.SECONDS.between(testStartTime, lazySingleSourceTime) should be >= 2L
+    }
+
+    "use Source.lazySource to defer creation & materialization of a source until there is demand" in {
+      val testStartTime = ZonedDateTime.now()
+
+      val lazySource = Source.lazySource(() => Source(Seq(ZonedDateTime.now())))
+
+      TimeUnit.SECONDS.sleep(2)
+
+      val futureResult = lazySource.runWith(Sink.head)
+
+      val lazySourceHeadTime = Await.result(futureResult, 1 second)
+
+      ChronoUnit.SECONDS.between(testStartTime, lazySourceHeadTime) should be >= 2L
+
+    }
+
+    // TODO NEXT Source.maybe: https://doc.akka.io/docs/akka/current/stream/operators/Source/maybe.html
   }
 }

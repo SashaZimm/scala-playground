@@ -14,7 +14,9 @@ Skipped `Source` Methods:
 - `fromSourceCompletionStage` (Deprecated see: `Source.completionStageSource`)
 - `lazily` (Deprecated see: `Source.lazySource`)
 - `lazilyAsync` (Deprecated see: `Source.lazyFutureSource`)
+- `lazyCompletionStage` (Doesn't exist in source code!)
+- `lazyCompletionStageSource` (Doesn't exist in source code!)
 
-TODO Next: `Source.lazyCompletionStage`
+TODO Next: `Source.maybe`
 
 
