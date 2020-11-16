@@ -5,14 +5,14 @@ import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
 
-import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Concat, Keep, Merge, Sink, Source}
+import akka.stream.scaladsl.{Concat, Keep, Merge, RunnableGraph, Sink, Source}
+import cats.implicits.catsSyntaxOptionId
 import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.DurationInt
 
 class SourceSpec extends AsyncWordSpec with Matchers {
@@ -224,9 +224,41 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       val lazySourceHeadTime = Await.result(futureResult, 1 second)
 
       ChronoUnit.SECONDS.between(testStartTime, lazySourceHeadTime) should be >= 2L
-
     }
 
-    // TODO NEXT Source.maybe: https://doc.akka.io/docs/akka/current/stream/operators/Source/maybe.html
+    "use Source.maybe to inject a value into the stream after creation by completing the materialized Promise" in {
+      val testStartTime = ZonedDateTime.now()
+
+      TimeUnit.SECONDS.sleep(2)
+
+      val sourceMaybeGraph: RunnableGraph[(Promise[Option[ZonedDateTime]], Future[ZonedDateTime])] = Source.maybe[ZonedDateTime].toMat(Sink.head)(Keep.both)
+
+      val (promise, sink) = sourceMaybeGraph.run()
+
+      // Now we complete the promise
+      // The result is calculated at this point & passed to the sink
+      promise.success(ZonedDateTime.now().some)
+
+      val sourceMaybeResult = Await.result(sink, 1 second)
+
+      ChronoUnit.SECONDS.between(testStartTime, sourceMaybeResult) should be >= 2L
+    }
+
+    "use Source.maybe to materialise a new promise each time run is called, to inject a value into the stream after creation" in {
+      val sourceMaybeGraph = Source.maybe[Int].toMat(Sink.head)(Keep.both)
+
+      // New promise materialised for each run call, and can be completed
+      // this contrasts with Source.fromFuture - the future passed to this can only be completed once
+      val (promiseOne, sinkOne) = sourceMaybeGraph.run()
+      val (promiseTwo, sinkTwo) = sourceMaybeGraph.run()
+
+      promiseOne.success(7.some)
+      promiseTwo.success(11.some)
+
+      Await.result(sinkOne, 1 second) shouldBe 7
+      Await.result(sinkTwo, 1 second) shouldBe 11
+    }
+
+    // TODO NEXT Source.never: https://doc.akka.io/docs/akka/current/stream/operators/Source/never.html
   }
 }
