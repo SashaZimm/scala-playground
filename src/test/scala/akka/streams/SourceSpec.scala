@@ -6,13 +6,14 @@ import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
 
 import akka.actor.ActorSystem
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{Concat, Keep, Merge, RunnableGraph, Sink, Source}
 import cats.implicits.catsSyntaxOptionId
 import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
-import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.{Await, Future, Promise, TimeoutException}
 import scala.concurrent.duration.DurationInt
 
 class SourceSpec extends AsyncWordSpec with Matchers {
@@ -258,6 +259,82 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       Await.result(sinkOne, 1 second) shouldBe 7
       Await.result(sinkTwo, 1 second) shouldBe 11
     }
+
+    "use Source.never for a source that never completes or emits any elements, useful for testing" in {
+      val sourceNeverGraph = Source.never[Int] //.initialTimeout(1 second)
+
+      val futureResult: Future[Int] = sourceNeverGraph.runWith(Sink.head)
+
+      // Odd, but illustrates that source never emits or completes so Await.result times out...
+      intercept[TimeoutException] { Await.result(futureResult, 2 seconds) } shouldBe a[TimeoutException]
+    }
+
+    "use Source.queue to materialize a SourceQueue that can be used to push elements to be emitted from the Source" in {
+      val sourceQueueGraph = Source.queue[Int](1, OverflowStrategy.backpressure).toMat(Sink.seq)(Keep.both)
+
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+      materializedQueue.complete()
+
+      Await.result(sink, 1 second) shouldBe Seq(1,2)
+    }
+
+    "use Source.queue with throttle to rate limit elements sent downstream in a given window" in {
+      val bufferSize = 1
+      val elementsToProcess = 1
+      val threeSecondWindow = 3 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.backpressure)
+        .throttle(elementsToProcess, threeSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      // TODO test function to wrap functionality and calculate time taken to complete...
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(8)
+      materializedQueue.offer(9)
+      materializedQueue.complete()
+
+      Await.result(sink, 4 seconds) shouldBe Seq(8,9)
+
+      val sinkReceivingCompleteTime = ZonedDateTime.now()
+
+      // 1 element is sent downstream every 3 seconds, so sink will take at least 3 seconds to receive 2 elements
+      ChronoUnit.SECONDS.between(streamStartTime, sinkReceivingCompleteTime) should be >= 3L
+    }
+
+    "use Source.queue with throttle and OverflowStrategy.backpressure to pause publisher until buffer has space" in {
+      val bufferSize = 1
+      val elementsToProcess = 1
+      val threeSecondWindow = 2 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.backpressure)
+        .throttle(elementsToProcess, threeSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Buffer now full, back-pressure applied until space opens in buffer
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      // Should get all elements as none are rejected, just delayed until buffer has space again
+      Await.result(sink, 5 seconds) shouldBe Seq(4,5,6)
+
+      // Backpressure keeps elements out of buffer until it has space, elements are consumed 1 per 2 seconds
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 4L
+    }
+
+    // TODO next tests to cover other OverflowStrategy's
 
     // TODO NEXT Source.never: https://doc.akka.io/docs/akka/current/stream/operators/Source/never.html
   }
