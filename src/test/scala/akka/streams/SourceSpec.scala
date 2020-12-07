@@ -4,9 +4,8 @@ import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 import java.util.stream.IntStream
-
 import akka.actor.ActorSystem
-import akka.stream.OverflowStrategy
+import akka.stream.{BufferOverflowException, OverflowStrategy}
 import akka.stream.scaladsl.{Concat, Keep, Merge, RunnableGraph, Sink, Source}
 import cats.implicits.catsSyntaxOptionId
 import org.scalatest.concurrent.ScalaFutures.convertScalaFuture
@@ -310,11 +309,11 @@ class SourceSpec extends AsyncWordSpec with Matchers {
     "use Source.queue with throttle and OverflowStrategy.backpressure to pause publisher until buffer has space" in {
       val bufferSize = 1
       val elementsToProcess = 1
-      val threeSecondWindow = 2 seconds
+      val twoSecondWindow = 2 seconds
 
       val sourceQueueGraph = Source
         .queue[Int](bufferSize, OverflowStrategy.backpressure)
-        .throttle(elementsToProcess, threeSecondWindow)
+        .throttle(elementsToProcess, twoSecondWindow)
         .toMat(Sink.seq)(Keep.both)
 
       val streamStartTime = ZonedDateTime.now()
@@ -334,8 +333,163 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 4L
     }
 
-    // TODO next tests to cover other OverflowStrategy's
+    "use Source.queue with throttle and OverflowStrategy.dropBuffer to drop older elements in buffer when full to process newer elements" in {
+      val bufferSize = 3
+      val elementsToProcess = 1
+      val twoSecondWindow = 2 seconds
 
-    // TODO NEXT Source.never: https://doc.akka.io/docs/akka/current/stream/operators/Source/never.html
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.dropBuffer)
+        .throttle(elementsToProcess, twoSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+
+      // Next 3 elements buffered
+      materializedQueue.offer(3)
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Next element offered and whole buffer dropped to process this one
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      // Should get elements processed before buffer became full, and the one offered when the buffer was full
+      Await.result(sink, 5 seconds) shouldBe Seq(1,2,6)
+
+      // 1 element processed every 2 seconds (0, 2, 4 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 4L
+    }
+
+    "use Source.queue with throttle and OverflowStrategy.dropHead to drop oldest element in buffer when full to process newer offered element" in {
+      val bufferSize = 3
+      val elementsToProcess = 1
+      val twoSecondWindow = 2 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.dropHead)
+        .throttle(elementsToProcess, twoSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+
+      // Next 3 elements buffered at time of drop
+      materializedQueue.offer(3)
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Next element offered and first (oldest) into buffer dropped to process this one
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      // Should only drop oldest element in FULL buffer (3) when another element is offered
+      Await.result(sink, 10 seconds) shouldBe Seq(1,2,4,5,6)
+
+      // 1 element processed every 2 seconds (0, 2, 4, 6, 8 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 8L
+    }
+
+    "use Source.queue with throttle and OverflowStrategy.dropTail to drop newest element in buffer when full to process newer offered element" in {
+      val bufferSize = 3
+      val elementsToProcess = 1
+      val twoSecondWindow = 2 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.dropTail)
+        .throttle(elementsToProcess, twoSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+
+      // Next 3 elements buffered at time of drop
+      materializedQueue.offer(3)
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Next element offered and last (newest) into buffer dropped to process this one
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      // Should only drop oldest element in FULL buffer (3) when another element is offered
+      Await.result(sink, 10 seconds) shouldBe Seq(1,2,3,4,6)
+
+      // 1 element processed every 2 seconds (0, 2, 4, 6, 8 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 8L
+    }
+
+    "use Source.queue with throttle and OverflowStrategy.dropNew to drop offered element when buffer us full" in {
+      val bufferSize = 3
+      val elementsToProcess = 1
+      val twoSecondWindow = 2 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.dropNew)
+        .throttle(elementsToProcess, twoSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val streamStartTime = ZonedDateTime.now()
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+
+      // Next 3 elements buffered at time of drop
+      materializedQueue.offer(3)
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Next element offered and dropped as buffer is full
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      // Should only drop element offered when buffer is full (6)
+      Await.result(sink, 10 seconds) shouldBe Seq(1,2,3,4,5)
+
+      // 1 element processed every 2 seconds (0, 2, 4, 6, 8 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= 8L
+    }
+
+    "use Source.queue with throttle and OverflowStrategy.fail to fail stream when new element is offered and buffer is full" in {
+      val bufferSize = 3
+      val elementsToProcess = 1
+      val twoSecondWindow = 2 seconds
+
+      val sourceQueueGraph = Source
+        .queue[Int](bufferSize, OverflowStrategy.fail)
+        .throttle(elementsToProcess, twoSecondWindow)
+        .toMat(Sink.seq)(Keep.both)
+
+      val (materializedQueue, sink) = sourceQueueGraph.run()
+
+      materializedQueue.offer(1)
+      materializedQueue.offer(2)
+
+      // Next 3 elements buffered at time of drop
+      materializedQueue.offer(3)
+      materializedQueue.offer(4)
+      materializedQueue.offer(5)
+
+      // Next element offered and causes failure
+      materializedQueue.offer(6)
+      materializedQueue.complete()
+
+      val failure = sink.failed.futureValue
+      failure shouldBe a[BufferOverflowException]
+      failure.getMessage shouldBe "Buffer overflow (max capacity was: 3)!"
+    }
+
+    // TODO NEXT Source.range: https://doc.akka.io/docs/akka/current/stream/operators/Source/range.html
   }
 }
