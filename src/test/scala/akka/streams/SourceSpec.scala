@@ -490,6 +490,73 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       failure.getMessage shouldBe "Buffer overflow (max capacity was: 3)!"
     }
 
-    // TODO NEXT Source.range: https://doc.akka.io/docs/akka/current/stream/operators/Source/range.html
+    "use Source.range (via apply method) to create a source emitting elements in the range (inclusive)" in {
+      val futureResult = Source(1 to 5).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(1,2,3,4,5)
+    }
+
+    "use Source.single to emit a single element" in {
+      val futureResult = Source.single(0).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(0)
+    }
+
+    "use Source.tick to periodically emit elements forever" in {
+      val delayBetweenElements = 1 second
+
+      val graph = Source.tick(0 seconds, delayBetweenElements, "tick").take(3).toMat(Sink.seq)(Keep.right)
+
+      val streamStartTime = ZonedDateTime.now()
+      val futureSink = graph.run()
+
+      Await.result(futureSink, 3 seconds) shouldBe Seq("tick","tick","tick")
+
+      // 3 elements with 1 second delay between each takes at least 2 seconds (emit at 0, 1, 2 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= (delayBetweenElements.toSeconds * 2)
+    }
+
+    "use Source.tick to periodically emit elements forever, with an initial delay" in {
+      val initialDelay = 2 seconds
+      val delayBetweenElements = 1 second
+
+      val graph = Source.tick(initialDelay, delayBetweenElements, "tick").take(1).toMat(Sink.seq)(Keep.right)
+
+      val streamStartTime = ZonedDateTime.now()
+      val futureSink = graph.run()
+
+      Await.result(futureSink, 3 seconds) shouldBe Seq("tick")
+
+      // 1 element with 2 second delay before first element takes at least 2 seconds (emit at 2 seconds)
+      ChronoUnit.SECONDS.between(streamStartTime, ZonedDateTime.now()) should be >= (initialDelay.toSeconds)
+    }
+
+    "use Source.tick to periodically emit elements forever, materialize a Cancellable, and use to cancel stream" in {
+      val delayBetweenElements = 1 second
+
+      val graph = Source.tick(0 seconds, delayBetweenElements, "tick").toMat(Sink.seq)(Keep.both)
+
+      val (materializedCancellable, futureSink) = graph.run()
+
+      // Emit 3 elements at 0, 1, 2 seconds (fourth element isn't quite reached before stream cancelled)
+      TimeUnit.SECONDS.sleep(3)
+      materializedCancellable.cancel()
+
+      // Stream is cancelled, we do not get infinite elements
+      Await.result(futureSink, 4 seconds) shouldBe Seq("tick", "tick", "tick")
+    }
+
+    "use Source.unfold to emit elements as long as the result is a Some (self-terminates)" in {
+      val futureResult = Source.unfold(3) { number =>
+        if (number == 0) None
+        else (number - 1, number).some // Emitted tuple is (next iteration element, element to emit)
+      }.runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(3,2,1)
+    }
+
+    // Another non terminating example of unfold
+
+    // TODO NEXT Source.unfoldAsync: https://doc.akka.io/docs/akka/current/stream/operators/Source/unfoldAsync.html
   }
 }
