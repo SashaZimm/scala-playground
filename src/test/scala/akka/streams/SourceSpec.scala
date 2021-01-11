@@ -546,7 +546,7 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       Await.result(futureSink, 4 seconds) shouldBe Seq("tick", "tick", "tick")
     }
 
-    "use Source.unfold to emit elements as long as the result is a Some (self-terminates)" in {
+    "use Source.unfold to emit elements as long as the result is a Some (self-terminating)" in {
       val futureResult = Source.unfold(3) { number =>
         if (number == 0) None
         else (number - 1, number).some // Emitted tuple is (next iteration element, element to emit)
@@ -555,8 +555,61 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       Await.result(futureResult, 1 second) shouldBe Seq(3,2,1)
     }
 
-    // Another non terminating example of unfold
+    "use Source.unfold to emit elements (non-terminating so combine with take(n))" in {
+      val futureResult = Source.unfold(0, 1) {
+        case (a, b) => ((b, a + b), a).some
+      }.take(8).runWith(Sink.seq)
 
-    // TODO NEXT Source.unfoldAsync: https://doc.akka.io/docs/akka/current/stream/operators/Source/unfoldAsync.html
+      Await.result(futureResult, 1 second) shouldBe Seq(0,1,1,2,3,5,8,13)
+    }
+
+    "use Source.unfoldAsync to emit a future that causes the source to emit or complete when it completes" in {
+
+      val countdownSource = Source.unfoldAsync(10) { number =>
+        if (number == 0) Future.successful(None) // source completes on this condition
+        else Future.successful((number -1, number).some)
+      }
+
+      val futureResult = countdownSource.runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(10,9,8,7,6,5,4,3,2,1)
+    }
+
+    "use Source.unfoldResource to safely extract stream elements from blocking resources, by providing 3 functions" in {
+
+      /** Example blocking resource traits and Impl */
+      trait Database { def doBlockingQuery(): QueryResult }
+      trait QueryResult {
+        def hasMore: Boolean
+        // potentially blocking retrieval of each element
+        def nextEntry(): DatabaseEntry
+        def close(): Unit
+      }
+      trait DatabaseEntry { val data: String }
+
+      val databaseEntry = new DatabaseEntry { override val data = "Any Result" }
+      val db = new Database {
+        override def doBlockingQuery(): QueryResult = new QueryResult {
+          def hasMore: Boolean = true
+          def nextEntry(): DatabaseEntry = databaseEntry
+          def close(): Unit = ()
+        }
+      }
+
+      val queryResultSource = Source.unfoldResource[DatabaseEntry, QueryResult](
+        // Create
+        { () => db.doBlockingQuery() },
+        // Read
+        { query => if (query.hasMore) query.nextEntry().some else None},
+        // Close
+        { query => query.close() }
+      )
+
+      val futureResult = queryResultSource.runWith(Sink.head)
+
+      Await.result(futureResult, 1 second) shouldBe databaseEntry
+    }
+
+    // TODO NEXT Source.unfoldResourceAsync: https://doc.akka.io/docs/akka/current/stream/operators/Source/unfoldResourceAsync.html
   }
 }
