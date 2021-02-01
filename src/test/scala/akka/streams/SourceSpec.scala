@@ -1,5 +1,7 @@
 package akka.streams
 
+import akka.Done
+
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
@@ -610,6 +612,94 @@ class SourceSpec extends AsyncWordSpec with Matchers {
       Await.result(futureResult, 1 second) shouldBe databaseEntry
     }
 
-    // TODO NEXT Source.unfoldResourceAsync: https://doc.akka.io/docs/akka/current/stream/operators/Source/unfoldResourceAsync.html
+    "use Source.unfoldResourceAsync to safely extract stream elements from async resources, by providing 3 functions" in {
+
+      /** Example blocking resource traits and Impl */
+      trait Database { def doBlockingQuery(): Future[QueryResult] }
+      trait QueryResult {
+        def hasMore(): Future[Boolean]
+        // potentially blocking retrieval of each element
+        def nextEntry(): Future[DatabaseEntry]
+        def close(): Future[Unit]
+      }
+      trait DatabaseEntry { val data: String }
+      class FixedDatabaseEntry extends DatabaseEntry { override val data = "Any Result" }
+      val databaseEntry = new FixedDatabaseEntry()
+
+
+      val fixedQueryResult = new QueryResult {
+        def hasMore() = Future.successful(true)
+        def nextEntry() = Future.successful(databaseEntry)
+        def close() = Future.successful()
+      }
+
+      val db = new Database {
+        override def doBlockingQuery(): Future[QueryResult] = Future.successful(fixedQueryResult)
+      }
+
+      val queryResultSource =
+        Source.unfoldResourceAsync[DatabaseEntry, QueryResult](
+          // Create
+          () => db.doBlockingQuery(),
+          // Read
+          query => Future.successful {
+            // GROTESQUE HACK - see example in akka docs for their solution but the source never completes
+            if (query.hasMore().futureValue) databaseEntry.some
+            else None
+          },
+          // Close
+          query => query.close().map(_ => Done)
+        )
+
+
+      val futureResult = queryResultSource.take(2).runWith(Sink.seq)
+
+      Await.result(futureResult, 10 seconds) shouldBe Seq(databaseEntry, databaseEntry)
+    }
+
+    "use Source.zipN to combine single elements from each upstream into a stream of collections" in {
+      val strings = Source("One" :: "Two" :: "Three" :: "Four" :: Nil)
+      val ints = Source(1 :: 2 :: 3 :: 4 :: Nil)
+      val doubles = Source(1.0 :: 2.0 :: 3.0 :: 4.0 :: Nil)
+
+      val futureResult = Source.zipN(strings :: ints :: doubles :: Nil).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(
+        List("One", 1, 1.0), List("Two", 2, 2.0), List("Three", 3, 3.0), List("Four", 4, 4.0)
+      )
+    }
+
+    "use Source.zipN to combine single elements from each upstream into a stream of collections (completes at end of the shortest upstream)" in {
+      val strings = Source("One" :: "Two" :: "Three" :: "Four" :: Nil)
+      val ints = Source(1 :: 2 :: 3 :: 4 :: Nil)
+      val doubles = Source(1.0 :: 2.0 :: Nil) // Lower number of elements than other sources
+
+      val futureResult = Source.zipN(strings :: ints :: doubles :: Nil).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq(
+        List("One", 1, 1.0), List("Two", 2, 2.0)
+      )
+    }
+
+    "use Source.zipWithN to combine single elements from each upstream into a stream of collections using a combiner function" in {
+      val englishCount = Source("One" :: "Two" :: "Three" :: "Four" :: Nil)
+      val frenchCount = Source("Un" :: "Deux" :: "Trois" :: "Quatre" :: Nil)
+      val spanishCount = Source("Uno" :: "Dos" :: "Tres" :: "Cuatro" :: Nil)
+
+      val futureResult = Source.zipWithN((nums: Seq[String]) => nums.mkString(", "))(englishCount :: frenchCount :: spanishCount :: Nil).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq("One, Un, Uno", "Two, Deux, Dos", "Three, Trois, Tres", "Four, Quatre, Cuatro")
+    }
+
+    "use Source.zipWithN to combine single elements from each upstream into a stream of collections using a combiner function (completes at end of the shortest upstream)" in {
+      val englishCount = Source("One" :: "Two" :: "Three" :: "Four" :: Nil)
+      val frenchCount = Source("Un" :: "Deux" :: "Trois" :: "Quatre" :: Nil)
+      val spanishCount = Source("Uno" :: "Dos" :: Nil) // Lower number of elements than other sources
+
+      val futureResult = Source.zipWithN((nums: Seq[String]) => nums.mkString(", "))(englishCount :: frenchCount :: spanishCount :: Nil).runWith(Sink.seq)
+
+      Await.result(futureResult, 1 second) shouldBe Seq("One, Un, Uno", "Two, Deux, Dos")
+    }
+
   }
 }
