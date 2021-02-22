@@ -1,23 +1,20 @@
-package `with`.cats.book
-
-import java.util.Date
-import java.util.concurrent.TimeUnit
+package `with`.cats.book.chapter1.introduction
 
 import cats.Eq
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
-import cats.instances.int._
+
+import java.util.Date
+import java.util.concurrent.TimeUnit
 
 class EqExercisesSpec extends AsyncWordSpec with Matchers {
 
-  "Eq" should {
+  "1.5.5 Eq" should {
 
     val convertToEqualizer = ()
-    import cats.syntax.eq._ // for === and =!=
-    import cats.instances.int._ // Eq[Int]
-    import cats.instances.long._ // for Eq[Long]
-    import cats.instances.string._ // Eq[String]
-    import cats.instances.option._ // Eq[Option]
+    import cats.instances.int._
+    import cats.instances.option._
+    import cats.syntax.eq._ // Eq[Option]
 
     "do better than the standard equals" in {
       // IntelliJ warns about different types but compiles!!
@@ -34,8 +31,6 @@ class EqExercisesSpec extends AsyncWordSpec with Matchers {
     }
 
     "use interface syntax to compare" in {
-
-      // import cats.syntax.eq._
       123 === 123 shouldBe true
 
       123 === 321 shouldBe false
@@ -61,6 +56,9 @@ class EqExercisesSpec extends AsyncWordSpec with Matchers {
     }
 
     "compare custom types by defining custom Eq instances" in {
+      import cats.syntax.eq._
+      import cats.instances.long._
+
       implicit val dateEq: Eq[Date] = Eq.instance[Date] { (date1, date2) =>
         date1.getTime === date2.getTime
       }
@@ -79,6 +77,9 @@ class EqExercisesSpec extends AsyncWordSpec with Matchers {
 
       case class Cat(name: String, age: Int, colour: String)
 
+      import cats.instances.string._
+      import cats.instances.int._
+      import cats.syntax.eq._
       implicit val catEq: Eq[Cat] = Eq.instance { (c1, c2) =>
         c1.name === c2.name && c1.age === c2.age && c1.colour === c2.colour
       }

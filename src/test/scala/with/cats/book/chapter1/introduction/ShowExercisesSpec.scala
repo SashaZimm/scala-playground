@@ -1,17 +1,17 @@
-package `with`.cats.book
-
-import java.util.Date
+package `with`.cats.book.chapter1.introduction
 
 import cats.Show
-import org.scalatest.matchers.should.Matchers
-import org.scalatest.wordspec.AsyncWordSpec
 import cats.instances.int._
 import cats.instances.string._
 import cats.syntax.show._
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
+
+import java.util.Date
 
 class ShowExercisesSpec extends AsyncWordSpec with Matchers {
 
-  "Show" should {
+  "1.4.6 Show" should {
     "can be defined if cats instances are in scope" in {
       val showInt = Show.apply[Int]
       val showString = Show.apply[String]

@@ -1,4 +1,4 @@
-package `with`.cats.book
+package `with`.cats.book.chapter2.monoids.and.semigroups
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
@@ -104,7 +104,7 @@ class MonoidsExercisesSpec extends AsyncWordSpec with Matchers {
 
   "2.5.4 Adding All The Things" should {
     "add Integers using cats " in {
-      import cats.instances.int._ // for Monoid[Int]
+      import cats.instances.int._
       import cats.syntax.semigroup._ // for |+|
 
       def add(items: List[Int]): Int =
@@ -114,8 +114,8 @@ class MonoidsExercisesSpec extends AsyncWordSpec with Matchers {
     }
 
     "add Options of Integers using cats" in {
-      import cats.instances.option._ // for Monoid[Option]
-      import cats.instances.int._ // for Monoid[Int]
+      import cats.instances.int._
+      import cats.instances.option._
       import cats.syntax.semigroup._ // for |+|
 
       def add[T : cats.Monoid](items: List[T]): T =

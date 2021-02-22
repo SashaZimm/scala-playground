@@ -1,11 +1,11 @@
-package `with`.cats.book
+package `with`.cats.book.chapter1.introduction
 
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
 class PrintableLibrarySpec extends AsyncWordSpec with Matchers {
 
-  "The Printable Library" should {
+  "1.3 The Printable Library" should {
 
     // type class
     trait Printable[A] {
