@@ -4,7 +4,9 @@ import cats.implicits.catsSyntaxOptionId
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 import cats.instances.function._
-import cats.syntax.functor._ // for map
+import cats.syntax.functor._
+
+import scala.concurrent.Future // for map
 
 class FunctorsPlaygroundSpec extends AsyncWordSpec with Matchers {
 
@@ -43,6 +45,73 @@ class FunctorsPlaygroundSpec extends AsyncWordSpec with Matchers {
       // Law 2 Composition - mapping with 2 functions f and g is the same as mapping with f and then mapping with g
       number.map(n => g(f(n))) shouldBe number.map(f).map(g)
     }
+  }
+
+  "Cats Functors" should {
+    import cats.Functor
+    import cats.instances.list._ // for Functor
+    import cats.instances.option._ // for Functor
+
+    "offer a Functor type class" in {
+      val list = List(1,2,3)
+      Functor[List].map(list)(_ * 2) shouldBe List(2,4,6)
+
+      val option = Some(123)
+      Functor[Option].map(option)(_.toString) shouldBe Some("123")
+    }
+
+    "offer a lift method to convert a function of A => B to function of Functor[A] => Functor[B]" in {
+      val func = (x: Int) => x + 1
+
+      val liftedFunc: Option[Int] => Option[Int] = Functor[Option].lift(func)
+
+      liftedFunc(Option(5)) shouldBe Option(6)
+    }
+
+    "offer an as method to replace the value inside the Functor with the given value" in {
+
+      val list = List(1,2,3)
+
+      Functor[List].as(list, 9) shouldBe List(9,9,9)
+      Functor[List].as(list, "Quack") shouldBe List("Quack","Quack","Quack")
+    }
+
+    "offer a map method as their main benefit" in {
+
+      val func1 = (x: Int) => x + 1
+      val func2 = (x: Int) => x * 2
+      val func3 = (x: Int) => s"$x!"
+
+      // map method from Cats Functor
+      val func4 = func1.map(func2).map(func3)
+
+      func4(123) shouldBe "248!"
+    }
+
+    "offer a map method as their main benefit (example that works for any Functor)" in {
+
+      def doMath[F[_]](start: F[Int])
+                      (implicit functor: Functor[F]): F[Int] =
+        start.map(n => n + 1 * 2)
+
+      doMath(Option(123)) shouldBe Option(125)
+      doMath(List(1,2,3)) shouldBe List(3,4,5)
+    }
+
+    "allow custom Functor instances to be defined" in {
+
+      // hypothetical - Cats already provides Functor for Option
+      implicit val optionFunctor: Functor[Option] = new Functor[Option] {
+        def map[A, B](value: Option[A])(func: A => B): Option[B] =
+          value.map(func)
+      }
+
+      val func1 = (x: Int) => x + 1
+      optionFunctor.map(Option(3))(func1) shouldBe Option(4)
+    }
+
+    // TODO: Continue from 3.5.3 "Instances for Custom Types" - "Sometimes we need to inject dependencies..." on page 74 / 322
+    // (futureFunctor) ...
   }
 
 }
