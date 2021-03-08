@@ -6,7 +6,6 @@ import org.scalatest.wordspec.AsyncWordSpec
 import cats.instances.function._
 import cats.syntax.functor._
 
-import scala.concurrent.Future // for map
 
 class FunctorsPlaygroundSpec extends AsyncWordSpec with Matchers {
 
@@ -110,8 +109,27 @@ class FunctorsPlaygroundSpec extends AsyncWordSpec with Matchers {
       optionFunctor.map(Option(3))(func1) shouldBe Option(4)
     }
 
-    // TODO: Continue from 3.5.3 "Instances for Custom Types" - "Sometimes we need to inject dependencies..." on page 74 / 322
-    // (futureFunctor) ...
+    "be able to inject dependencies when creating functor instances (can't add parameters directly to Functor.map)" in {
+
+      trait Dependency{}
+      implicit val dependency = new Dependency{}
+
+      // again hypothetical - Cats already provides Functor for Option
+      implicit def optionFunctor(implicit injected: Dependency): Functor[Option] = new Functor[Option] {
+        override def map[A, B](fa: Option[A])(f: A => B): Option[B] = {
+          // The Dependency instance is injected, and available for use by fa
+          // A more realistic example would be a futureFunctor that needs an implicit ExecutionContext for it's map method
+          // and this would be injected, but I had errors due to multiple implicits found in scope :/
+          fa.map(f)
+        }
+      }
+
+
+      val func1 = (name: String)  => s"Hello $name"
+      optionFunctor.map(Option("Barry"))(func1) shouldBe Some("Hello Barry")
+    }
+
+    // TODO: Continue from 3.5.4 "Exercise: Branching out with Functors" on page 75 / 322
   }
 
 }
