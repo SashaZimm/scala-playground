@@ -6,4 +6,4 @@ Currently working in: `FunctorsPlaygroundSpec`
 
 To run a single test: `testOnly *FunctorsPlaygroundSpec`
 
-TODO: Continue from 3.5.4 "Exercise: Branching out with Functors" on page 75 / 322
+TODO: Continue from 3.6 "Contravariant and Invariant Functors" on page 75 / 322
