@@ -129,7 +129,6 @@ class FunctorsPlaygroundSpec extends AsyncWordSpec with Matchers {
       optionFunctor.map(Option("Barry"))(func1) shouldBe Some("Hello Barry")
     }
 
-    // TODO: Continue from 3.6 "Contravariant and Invariant Functors" on page 75 / 322
   }
 
 }

@@ -6,4 +6,4 @@ Currently working in: `FunctorsPlaygroundSpec`
 
 To run a single test: `testOnly *FunctorsPlaygroundSpec`
 
-TODO: Continue from 3.6 "Contravariant and Invariant Functors" on page 75 / 322
+TODO: Continue from "3.6.2 Invariant functors and the imap method" on page 79 / 322
